@@ -12,9 +12,7 @@
   matches (according to LinkedIn).
 
 - Limit to 20-25 jobs to apply to? I am not sure how long this will take to run at the moment.
-  Some searches might even result in less than that so it may be good. 
-
-- When applying 
+  Some searches might even result in less than that so it may be good.  
 """
 
 import pandas as pd
@@ -43,6 +41,8 @@ def main():
     create_file_if_not_exists(json_path)
 
     jobs_applied_to = load_applied_jobs(json_path)
+
+    print(jobs_applied_to)
 
     DRIVER_PATH = r"C:\Program Files (x86)\ChromeDriver\chromedriver.exe"
     website = """https://www.linkedin.com/jobs/search/
@@ -76,37 +76,36 @@ def create_file_if_not_exists(json_path):
             json.dump([], f, indent=4)
 
 
-def load_applied_jobs():
+def load_applied_jobs(json_path):
     """
     Loads jobs already applied to from a JSON file 
     or return an empty list if the file doesn't exist.
     """
     
-    JOBS_APPLIED_TO = "applied_to.json"
-    
-    if os.path.exists(JOBS_APPLIED_TO):
-        with open(JOBS_APPLIED_TO, "r") as file:
+    if os.path.exists(json_path):
+        with open(json_path, "r") as file:
             return json.load(file)
     return []
 
 
-def already_applied(id, title, company):
+def already_applied(id, title, company, json_path):
     """
     Checks if the job ID is found in the 'applied_to.json' file.
     """
-    jobs_applied_to = load_applied_jobs()
+    jobs_applied_to = load_applied_jobs(json_path)
 
     for job in jobs_applied_to:
         if job["id"] == id:
             print(f"Job {title} at {company} has already been applied to.")
-            return  # Exit the function if the job has been applied to already
+            return # Exit the function if the job has been applied to already
 
-def show_applied_jobs():
+
+def show_applied_jobs(json_path):
     """
     Displays a list of jobs already applied to from the 'applied_to.json' file.
     Printed out to the console.
     """
-    jobs_applied_to = load_applied_jobs()
+    jobs_applied_to = load_applied_jobs(json_path)
     if not jobs_applied_to:
         print("No jobs applied to yet.")
         return
@@ -245,10 +244,10 @@ def set_filter():
 
 
 def search_jobs_based_on_filter(filters: dict):
-    dp_filter_el = 
-    exp_filter_el = 
-    job_filter_el = 
-    loc_filter_el = 
+    dp_filter_el = ""
+    exp_filter_el = ""
+    job_filter_el = ""
+    loc_filter_el = ""
 
 
 def does_job_have_easy_apply(easy_override: bool) -> bool:
