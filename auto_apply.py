@@ -16,9 +16,11 @@
 """
 
 import pandas as pd
+import getpass
 import regex
 import time
 import json
+import sys
 import os
 
 from selenium.common.exceptions import NoSuchElementException
@@ -26,70 +28,77 @@ from selenium.webdriver.chrome.webdriver import WebDriver
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.common.by import By
 from selenium import webdriver
 from datetime import date
-from pathlib import Path
+from pathlib import Path, WindowsPath
 from pick import pick # module for the console menuing - https://github.com/aisk/pick
 
 def main():
-   
-    json_path = Path("./applied_to.json")
-    json_path.parent.mkdir(exist_ok=True, parents=True)
-    json_path.write_text("some text")
-    
-    create_file_if_not_exists(json_path)
+  
+    try:
+        json_path = Path("./applied_to.json")
+        create_file_if_not_exists(json_path)
 
-    jobs_applied_to = load_applied_jobs(json_path)
+        jobs_applied_to = load_applied_jobs(json_path)
+        print(f"---------Jobs Already Applied To----------\n{jobs_applied_to}")
 
-    print(jobs_applied_to)
+        DRIVER_PATH = r"C:\Program Files (x86)\ChromeDriver\chromedriver.exe"
+        website = "https://www.linkedin.com/jobs/search/?currentJobId=4147206861&geoId=103644278&origin=JOB_SEARCH_PAGE_JOB_FILTER&refresh=true"
+        chrome_options = webdriver.ChromeOptions()
+        # chrome_options.add_argument("--headless")
+        chrome_options.add_argument("--disable-webrtc")
 
-    DRIVER_PATH = r"C:\Program Files (x86)\ChromeDriver\chromedriver.exe"
-    website = """https://www.linkedin.com/jobs/search/
-                ?currentJobId=4147206861&geoId=103644278
-                &origin=JOB_SEARCH_PAGE_JOB_FILTER&refresh=true"""
+        service = Service(DRIVER_PATH)
+        driver = webdriver.Chrome(service=service, options=chrome_options)
 
-    chrome_options = webdriver.ChromeOptions()
-    chrome_options.add_argument("--headless")
+        driver.get(website)
+        
+        login(driver, 5)
+        time.sleep(3)
 
-    service = Service(DRIVER_PATH)
-    driver = webdriver.Chrome(service=service, options=chrome_options)
+        all_filters_btn = wait_for_element(
+            driver, 5, "//button[(contains(@class, 'search-reusables__all-filters-pill-button'))]") 
+        all_filters_btn.click()
+        
+        set_filter()
 
-    driver.get(website)
-    
-    login(driver, 5)
-    
-    all_filters_btn = wait_for_element(driver, 5, "//button[contains(@class, 'search')]")
-    all_filters_btn.click()
-
-    time.sleep(2)
-
-    set_filter()
+    except Exception as e:
+        print(f"\n\nAn error has occurred: {e}\n")
 
 
-def create_file_if_not_exists(json_path):
+def create_file_if_not_exists(json_path: Path):
     """
-    Creates the 'applied_to.json' file if it doesn't exist.
+    Creates the 'applied_to.json' file if it doesn't exist or is empty.
     """
-    if not json_path.exists():
+    if not json_path.exists() or os.stat(json_path).st_size == 0:
         with json_path.open("w") as f:
             json.dump([], f, indent=4)
 
 
-def load_applied_jobs(json_path):
+def load_applied_jobs(json_path: Path):
     """
     Loads jobs already applied to from a JSON file 
-    or return an empty list if the file doesn't exist.
+    or return an empty list if the file is empty or invalid.
     """
-    
     if os.path.exists(json_path):
-        with open(json_path, "r") as file:
-            return json.load(file)
+        try:
+            with open(json_path, "r") as file:
+                content = file.read().strip()
+                if not content: 
+                    return []
+                return json.loads(content) 
+        except (json.JSONDecodeError, ValueError):
+            print("Warning: The JSON file is empty or corrupt. Resetting it.")
+            with open(json_path, "w") as file:
+                json.dump([], file, indent=4)
+            return []
     return []
 
 
-def already_applied(id, title, company, json_path):
-    """
+def already_applied(id: int, title: str, company: str, json_path: Path):
+    """ 
     Checks if the job ID is found in the 'applied_to.json' file.
     """
     jobs_applied_to = load_applied_jobs(json_path)
@@ -100,7 +109,7 @@ def already_applied(id, title, company, json_path):
             return # Exit the function if the job has been applied to already
 
 
-def show_applied_jobs(json_path):
+def show_applied_jobs(json_path: Path):
     """
     Displays a list of jobs already applied to from the 'applied_to.json' file.
     Printed out to the console.
@@ -131,10 +140,7 @@ def wait_for_element(driver: WebDriver, time_to_wait: float, xpath: str):
     - WebElement: The element that matches the given XPath.
     """
     return WebDriverWait(driver, time_to_wait).until(
-        EC.presence_of_element_located(
-            (By.XPATH, xpath)
-        )
-    )
+        EC.presence_of_element_located((By.XPATH, xpath)))
 
 
 def login(driver: WebDriver, time_to_wait: float):
@@ -146,33 +152,34 @@ def login(driver: WebDriver, time_to_wait: float):
 
     time_to_wait : int 
     - Value for the seconds argument in WebDriverWait() 
-    """
-    login_txt = WebDriverWait(driver, time_to_wait).until(
-        EC.presence_of_element_located((By.XPATH, "//input[contains(@id, 'username')]"))
-    )
-    password_txt = WebDriverWait(driver, time_to_wait).until(
-        EC.presence_of_element_located((By.XPATH, "//input[contains(@id, 'password')]"))
-    )
+    """ 
+    sign_in_modal = wait_for_element(driver, 5, "//body")
+    sign_in_modal.send_keys(Keys.ESCAPE)
+    sign_in_button = wait_for_element(
+        driver, 5, "//a[contains(@class, 'nav__button-secondary btn-secondary-emphasis btn-md')]")
+    sign_in_button.click()
+
+    time.sleep(10)
+
+    login_txt = wait_for_element(driver, time_to_wait, "//input[contains(@id, 'username')]")
+    password_txt = wait_for_element(driver, time_to_wait, "//input[contains(@id, 'password')]")
     
-    user_login = input("Enter LinkedIn Email or Phone: ")
-    user_password = input("Enter LinkedIn Password: ")
+    user_login = input("\nEnter LinkedIn Email or Phone: ")
+    user_password = getpass.getpass("Enter LinkedIn Password: ") 
     
     login_txt.send_keys(user_login)
     password_txt.send_keys(user_password)
 
-    driver.find_element(By.XPATH, "//button[contains(@data-litms-control-urn, 'login-submit')]").click()
-    
+    login = wait_for_element(driver, 5, "//button[@type='submit']")
+    login.click() 
 
 def job_and_location_search(driver: WebDriver, time_to_wait: float):
     """
     User input for the job (title, skill, company) and location search boxes.
     Clicks the search button after the information is entered.
     """ 
-    job_search_box = WebDriverWait(driver, time_to_wait).until(
-        EC.presence_of_element_located(
-            (By.XPATH, "//input[contains(@class, 'jobs-search-box__input--keyword')]")
-        )
-    )
+    job_search_box = wait_for_element(driver, time_to_wait, 
+                                    "//input[contains(@class, 'jobs-search-box__input--keyword')]")
 
     job_search_by_user = input("""Enter any titles, skills, companies, etc. 
                                     as you would normally on LinkedIn: """)
@@ -221,14 +228,24 @@ def set_filter():
             'Remote'
     ]
 
-    # pick() returns a dict because multiselect can be enabled, so the output
+    # pick() returns a list of items because multiselect can be enabled, so the output
     # would be something like "[('Any time', '0')]" for date_posted as an
     # example. '0' being the index of the item in the dict. 
     date_posted, _  = pick(dp_opts, dp_q, indicator='»')
-    exp_lvl, _      = pick(exp_opts, exp_q, indicator='»', multiselect=True)
-    job_type, _     = pick(job_opts, job_q, indicator='»', multiselect=True)
-    loc_type, _     = pick(loc_opts, loc_q, indicator='»', multiselect=True)
+
+    # For the multi-selects, the right arrow key is used to mark each selection, enter adds it to the dict. 
+    # These return a list comprehension of tuples (value, index) in order to unpack them properly from using pick.
+    # So instead of returning "[('Full-time', '0'), ('Part-time','1')]", this returns just ['Full-time','Part-time']
+    # Using isinstance() to handle single and multiselect outputs.
+    exp_lvl_result = pick(exp_opts, exp_q, indicator='»', multiselect=True)
+    exp_lvl = [item[0] for item in exp_lvl_result] if isinstance(exp_lvl_result, list) else [exp_lvl_result[0]]
     
+    job_type_result = pick(job_opts, job_q, indicator='»', multiselect=True)
+    job_type = [item[0] for item in job_type_result] if isinstance(job_type_result, list) else [job_type_result[0]]
+
+    loc_type_result = pick(loc_opts, loc_q, indicator='»', multiselect=True)
+    loc_type = [item[0] for item in loc_type_result] if isinstance(loc_type_result, list) else [loc_type_result[0]]
+
     filters = {
         "date_posted": date_posted,
         "experience_level": exp_lvl,
