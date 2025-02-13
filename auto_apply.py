@@ -25,6 +25,7 @@ import os
 
 from selenium.common.exceptions import NoSuchElementException
 from selenium.webdriver.chrome.webdriver import WebDriver
+from selenium.webdriver.remote.webelement import WebElement
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.chrome.service import Service
@@ -58,6 +59,8 @@ def main():
         login(driver, 5)
         time.sleep(3)
 
+        job_and_location_search(driver, 5)
+
         all_filters_btn = wait_for_element(
             driver, 5, "//button[(contains(@class, 'search-reusables__all-filters-pill-button'))]") 
         all_filters_btn.click()
@@ -71,6 +74,9 @@ def main():
 def create_file_if_not_exists(json_path: Path):
     """
     Creates the 'applied_to.json' file if it doesn't exist or is empty.
+
+    json_path : Path
+    -The filesystem path where the 'applied_to.json' file is located.
     """
     if not json_path.exists() or os.stat(json_path).st_size == 0:
         with json_path.open("w") as f:
@@ -81,6 +87,9 @@ def load_applied_jobs(json_path: Path):
     """
     Loads jobs already applied to from a JSON file 
     or return an empty list if the file is empty or invalid.
+    
+    json_path : Path
+    -The filesystem path where the 'applied_to.json' file is located.
     """
     if os.path.exists(json_path):
         try:
@@ -100,6 +109,9 @@ def load_applied_jobs(json_path: Path):
 def already_applied(id: int, title: str, company: str, json_path: Path):
     """ 
     Checks if the job ID is found in the 'applied_to.json' file.
+    
+    json_path : Path
+    -The filesystem path where the 'applied_to.json' file is located.
     """
     jobs_applied_to = load_applied_jobs(json_path)
 
@@ -113,6 +125,9 @@ def show_applied_jobs(json_path: Path):
     """
     Displays a list of jobs already applied to from the 'applied_to.json' file.
     Printed out to the console.
+    
+    json_path : Path
+    -The filesystem path where the 'applied_to.json' file is located.
     """
     jobs_applied_to = load_applied_jobs(json_path)
     if not jobs_applied_to:
@@ -124,7 +139,7 @@ def show_applied_jobs(json_path: Path):
         print(f"{job['date_applied']} - {job['job_title']} at {job['company']}")
 
 
-def wait_for_element(driver: WebDriver, time_to_wait: float, xpath: str):
+def wait_for_element(driver: WebDriver, time_to_wait: float, xpath: str) -> WebElement:
     """ 
     Avoids having to type the below lines over and over.
 
@@ -155,11 +170,9 @@ def login(driver: WebDriver, time_to_wait: float):
     """ 
     sign_in_modal = wait_for_element(driver, 5, "//body")
     sign_in_modal.send_keys(Keys.ESCAPE)
-    sign_in_button = wait_for_element(
+    sign_in_btn = wait_for_element(
         driver, 5, "//a[contains(@class, 'nav__button-secondary btn-secondary-emphasis btn-md')]")
-    sign_in_button.click()
-
-    time.sleep(10)
+    sign_in_btn.click()
 
     login_txt = wait_for_element(driver, time_to_wait, "//input[contains(@id, 'username')]")
     password_txt = wait_for_element(driver, time_to_wait, "//input[contains(@id, 'password')]")
@@ -173,20 +186,32 @@ def login(driver: WebDriver, time_to_wait: float):
     login = wait_for_element(driver, 5, "//button[@type='submit']")
     login.click() 
 
+
 def job_and_location_search(driver: WebDriver, time_to_wait: float):
     """
     User input for the job (title, skill, company) and location search boxes.
     Clicks the search button after the information is entered.
     """ 
     job_search_box = wait_for_element(driver, time_to_wait, 
-                                    "//input[contains(@class, 'jobs-search-box__input--keyword')]")
+                                      "//input[contains(@aria-label, 'Search by title, skill, or company')]")
+    
+    loc_search_box = wait_for_element(driver, time_to_wait,
+                                      "//input[contains(@aria-label, 'City, state, or zip code')]")
 
-    job_search_by_user = input("""Enter any titles, skills, companies, etc. 
-                                    as you would normally on LinkedIn: """)
+    job_search_by_user = input("\n\nEnter any titles, skills, companies, etc. as you would normally on LinkedIn (i.e. 'analyst', excel, sql, microsoft). \n\n**Anything in '' or \"\" means it must be found.**\n\n:")
+    loc_search_by_user = input("\n\nEnter the location you want to find jobs in. \n\n This should be either, a Country, State, County, City, etc. Or a combination of them all -- be either as specific as possible, or as broad as possible.\n\n:") 
+
     job_search_box.clear()
     job_search_box.send_keys(job_search_by_user)
 
-    
+    loc_search_box.clear()
+    loc_search_box.send_keys(loc_search_by_user)
+
+    search_btn = wait_for_element(driver, time_to_wait,
+                                  "//button[contains(@class, 'jobs-search-box__submit-button')]")
+    search_btn.click()
+
+         
 def set_filter():
     """
     Displays a console menu for each filter option. 
