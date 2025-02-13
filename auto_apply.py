@@ -20,10 +20,8 @@ import getpass
 import regex
 import time
 import json
-import sys
 import os
 
-from selenium.common.exceptions import NoSuchElementException
 from selenium.webdriver.chrome.webdriver import WebDriver
 from selenium.webdriver.remote.webelement import WebElement
 from selenium.webdriver.support import expected_conditions as EC
@@ -33,8 +31,17 @@ from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.common.by import By
 from selenium import webdriver
 from datetime import date
-from pathlib import Path, WindowsPath
+from pathlib import Path
 from pick import pick # module for the console menuing - https://github.com/aisk/pick
+
+DRIVER_PATH = r"C:\Program Files (x86)\ChromeDriver\chromedriver.exe"
+website = "https://www.linkedin.com/jobs/search/?currentJobId=4147206861&geoId=103644278&origin=JOB_SEARCH_PAGE_JOB_FILTER&refresh=true"
+chrome_options = webdriver.ChromeOptions()
+# chrome_options.add_argument("--headless")
+chrome_options.add_argument("--disable-webrtc")
+
+service = Service(DRIVER_PATH)
+driver = webdriver.Chrome(service=service, options=chrome_options)
 
 def main():
   
@@ -44,16 +51,7 @@ def main():
 
         jobs_applied_to = load_applied_jobs(json_path)
         print(f"---------Jobs Already Applied To----------\n{jobs_applied_to}")
-
-        DRIVER_PATH = r"C:\Program Files (x86)\ChromeDriver\chromedriver.exe"
-        website = "https://www.linkedin.com/jobs/search/?currentJobId=4147206861&geoId=103644278&origin=JOB_SEARCH_PAGE_JOB_FILTER&refresh=true"
-        chrome_options = webdriver.ChromeOptions()
-        # chrome_options.add_argument("--headless")
-        chrome_options.add_argument("--disable-webrtc")
-
-        service = Service(DRIVER_PATH)
-        driver = webdriver.Chrome(service=service, options=chrome_options)
-
+        
         driver.get(website)
         
         login(driver, 5)
@@ -66,6 +64,8 @@ def main():
         all_filters_btn.click()
         
         set_filter()
+
+        driver.quit()
 
     except Exception as e:
         print(f"\n\nAn error has occurred: {e}\n")
@@ -85,7 +85,7 @@ def create_file_if_not_exists(json_path: Path):
 
 def load_applied_jobs(json_path: Path):
     """
-    Loads jobs already applied to from a JSON file 
+    Loads jobs already applied to from a JSON file //button[contains(@class, 'search-reusables__secondary-filters-show-results-button')]
     or return an empty list if the file is empty or invalid.
     
     json_path : Path
@@ -177,6 +177,8 @@ def login(driver: WebDriver, time_to_wait: float):
     login_txt = wait_for_element(driver, time_to_wait, "//input[contains(@id, 'username')]")
     password_txt = wait_for_element(driver, time_to_wait, "//input[contains(@id, 'password')]")
     
+    time.sleep(10) # waiting for some logging to finish.
+
     user_login = input("\nEnter LinkedIn Email or Phone: ")
     user_password = getpass.getpass("Enter LinkedIn Password: ") 
     
@@ -191,6 +193,12 @@ def job_and_location_search(driver: WebDriver, time_to_wait: float):
     """
     User input for the job (title, skill, company) and location search boxes.
     Clicks the search button after the information is entered.
+    
+    driver : WebDriver
+    - Needed in order to search for the element and interact with it.
+
+    time_to_wait : int 
+    - Value for the seconds argument in WebDriverWait() 
     """ 
     job_search_box = wait_for_element(driver, time_to_wait, 
                                       "//input[contains(@aria-label, 'Search by title, skill, or company')]")
@@ -198,20 +206,43 @@ def job_and_location_search(driver: WebDriver, time_to_wait: float):
     loc_search_box = wait_for_element(driver, time_to_wait,
                                       "//input[contains(@aria-label, 'City, state, or zip code')]")
 
-    job_search_by_user = input("\n\nEnter any titles, skills, companies, etc. as you would normally on LinkedIn (i.e. 'analyst', excel, sql, microsoft). \n\n**Anything in '' or \"\" means it must be found.**\n\n:")
-    loc_search_by_user = input("\n\nEnter the location you want to find jobs in. \n\n This should be either, a Country, State, County, City, etc. Or a combination of them all -- be either as specific as possible, or as broad as possible.\n\n:") 
+    job_search_by_user = input("""Enter any titles, skills, companies, etc. as you would normally on LinkedIn 
+                                  (i.e. 'analyst', excel, sql, microsoft). 
+                                  
+                                  **Anything in '' or \"\" means it must be found.**
+
+                                  :""")
+    loc_search_by_user = input("""Enter the location you want to find jobs in (city, state, zip, country, etc.)
+
+                                  :""") 
 
     job_search_box.clear()
     job_search_box.send_keys(job_search_by_user)
 
+    exclude_companies(job_search_box)
+
     loc_search_box.clear()
     loc_search_box.send_keys(loc_search_by_user)
 
-    search_btn = wait_for_element(driver, time_to_wait,
-                                  "//button[contains(@class, 'jobs-search-box__submit-button')]")
+    # don't need to wait for the element to appear here since it's loading at the same time as the inputs.
+    search_btn = driver.find_element(By.XPATH, "//button[contains(@class, 'jobs-search-box__submit-button')]") 
     search_btn.click()
 
-         
+
+def exclude_companies(job_search_box: WebElement):
+    """
+    Exclude companies from your search. Typically ones that are found spamming the board such as Dice and Jobot. 
+    """
+    comma_pattern = r"\s?,\s?"
+    exclude = input("Enter a list of companies you'd like to avoid seeing listings for (comma-separated): ")
+    
+    # doing this to replace all commas with the word "NOT" to 
+    # be able to exclude specific companies from our search.
+    comma_replace = regex.sub(comma_pattern, " NOT ", exclude)
+
+    job_search_box.send_keys(Keys.END + " NOT " + comma_replace)     
+   
+
 def set_filter():
     """
     Displays a console menu for each filter option. 
@@ -277,19 +308,11 @@ def set_filter():
         "job_type": job_type,
         "location_type": loc_type
     }
+        
+    show_results_btn = driver.find_element(By.XPATH, "//button[contains(@class, 'search-reusables__secondary-filters-show-results-button')]")
+    show_results_btn.click()
 
     return filters
-
-
-# def apply_filter(filters: dict):
-#     pass    
-
-
-def search_jobs_based_on_filter(filters: dict):
-    dp_filter_el = ""
-    exp_filter_el = ""
-    job_filter_el = ""
-    loc_filter_el = ""
 
 
 def does_job_have_easy_apply(easy_override: bool) -> bool:
