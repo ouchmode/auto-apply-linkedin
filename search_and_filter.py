@@ -1,4 +1,9 @@
-import set_driver
+from selenium.webdriver.remote.webelement import WebElement
+from selenium.webdriver.common.keys import Keys
+from selenium.webdriver.common.by import By
+
+import inquirer
+import regex
 import util
 
 def job_and_location_search(driver, time_to_wait: float):
@@ -12,10 +17,10 @@ def job_and_location_search(driver, time_to_wait: float):
     time_to_wait : int 
     - Value for the seconds argument in WebDriverWait() 
     """ 
-    job_search_box = wait_for_element(driver, time_to_wait, 
+    job_search_box = util.wait_for_element(driver, time_to_wait, 
                                       "//input[contains(@aria-label, 'Search by title, skill, or company')]")
     
-    loc_search_box = wait_for_element(driver, time_to_wait,
+    loc_search_box = util.wait_for_element(driver, time_to_wait,
                                       "//input[contains(@aria-label, 'City, state, or zip code')]")
     
     print("-"*80)
